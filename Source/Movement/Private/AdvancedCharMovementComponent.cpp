@@ -110,6 +110,12 @@ void UAdvancedCharMovementComponent::SprintReleased()
 	Safe_bWantsToSprint = false;
 }
 
+void UAdvancedCharMovementComponent::CrouchPressed()
+{
+	bWantsToCrouch = !bWantsToCrouch;
+}
+
 UAdvancedCharMovementComponent::UAdvancedCharMovementComponent()
 {
+	NavAgentProps.bCanCrouch = true;
 }
