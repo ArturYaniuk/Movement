@@ -20,6 +20,11 @@ class AMovementCharacter : public ACharacter
 {
 	GENERATED_BODY()
 
+	protected:
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category=Movement)
+	class UAdvancedCharMovementComponent* AdvancedCharacterMovementComponent;
+	
+private:
 	/** Camera boom positioning the camera behind the character */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Camera, meta = (AllowPrivateAccess = "true"))
 	USpringArmComponent* CameraBoom;
@@ -45,7 +50,7 @@ class AMovementCharacter : public ACharacter
 	UInputAction* LookAction;
 
 public:
-	AMovementCharacter();
+	AMovementCharacter(const FObjectInitializer& ObjectInitializer);
 	
 
 protected:

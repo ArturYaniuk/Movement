@@ -28,7 +28,7 @@ uint8 UAdvancedCharMovementComponent::FSavedMove_Movement::GetCompressedFlags() 
 {
 	uint8 Result = Super::GetCompressedFlags();
 
-	if (Saved_bWantsToSprint) Result != FLAG_Custom_0;
+	if (Saved_bWantsToSprint) Result = FLAG_Custom_0;
 
 	return Result;
 }
@@ -49,6 +49,65 @@ void UAdvancedCharMovementComponent::FSavedMove_Movement::PrepMoveFor(ACharacter
 	UAdvancedCharMovementComponent* CharacterMovement = Cast<UAdvancedCharMovementComponent>(C->GetCharacterMovement());
 
 	CharacterMovement->Safe_bWantsToSprint = Saved_bWantsToSprint;
+}
+
+UAdvancedCharMovementComponent::FNetworkPredictionData_Client_Movement::FNetworkPredictionData_Client_Movement(const UCharacterMovementComponent& ClientMovement)
+: Super(ClientMovement)
+{
+	
+}
+
+FSavedMovePtr UAdvancedCharMovementComponent::FNetworkPredictionData_Client_Movement::AllocateNewMove()
+{
+	return FSavedMovePtr(new FSavedMove_Character());
+}
+
+FNetworkPredictionData_Client* UAdvancedCharMovementComponent::GetPredictionData_Client() const
+{
+	check(PawnOwner != nullptr);
+	
+	if (ClientPredictionData != nullptr)
+	{
+		UAdvancedCharMovementComponent* MutableThis = const_cast<UAdvancedCharMovementComponent*>(this);
+
+		MutableThis->ClientPredictionData = new FNetworkPredictionData_Client_Movement(*this);
+		MutableThis->ClientPredictionData->MaxSmoothNetUpdateDist = 92.f;
+		MutableThis->ClientPredictionData->NoSmoothNetUpdateDist = 140.f;
+		
+	}
+	return ClientPredictionData;
+}
+
+void UAdvancedCharMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
+{
+	Super::UpdateFromCompressedFlags(Flags);
+	Safe_bWantsToSprint = (Flags & FSavedMove_Character::FLAG_Custom_0) != 0;
+}
+
+void UAdvancedCharMovementComponent::OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity)
+{
+	Super::OnMovementUpdated(DeltaSeconds, OldLocation, OldVelocity);
+	if (MovementMode == MOVE_Walking)
+	{
+		if (Safe_bWantsToSprint)
+		{
+			MaxWalkSpeed = Sprint_MaxWalkSpeed;
+		}
+		else
+		{
+			MaxWalkSpeed = Walk_MaxWalkSpeed;
+		}
+	}
+}
+
+void UAdvancedCharMovementComponent::SprintPressed()
+{
+	Safe_bWantsToSprint = true;
+}
+
+void UAdvancedCharMovementComponent::SprintReleased()
+{
+	Safe_bWantsToSprint = false;
 }
 
 UAdvancedCharMovementComponent::UAdvancedCharMovementComponent()

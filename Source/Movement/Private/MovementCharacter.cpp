@@ -1,6 +1,8 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "MovementCharacter.h"
+
+#include "AdvancedCharMovementComponent.h"
 #include "Engine/LocalPlayer.h"
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
@@ -16,8 +18,12 @@ DEFINE_LOG_CATEGORY(LogTemplateCharacter);
 //////////////////////////////////////////////////////////////////////////
 // AMovementCharacter
 
-AMovementCharacter::AMovementCharacter()
+AMovementCharacter::AMovementCharacter(const FObjectInitializer& ObjectInitializer)
+: Super(ObjectInitializer.SetDefaultSubobjectClass<UAdvancedCharMovementComponent>(ACharacter::CharacterMovementComponentName))
 {
+
+	AdvancedCharacterMovementComponent = Cast<UAdvancedCharMovementComponent>(GetCharacterMovement());
+	
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
 		
