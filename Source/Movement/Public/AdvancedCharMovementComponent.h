@@ -27,9 +27,37 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 		virtual void PrepMoveFor(ACharacter* C) override;
 	};
 
+	class FNetworkPredictionData_Client_Movement : public FNetworkPredictionData_Client_Character
+	{
+	public:
+		FNetworkPredictionData_Client_Movement(const UCharacterMovementComponent& ClientMovement);
+
+		typedef FNetworkPredictionData_Client_Character Super;
+
+		virtual FSavedMovePtr AllocateNewMove() override;
+	};
+
+	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed;
+	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed;
+
 	bool Safe_bWantsToSprint;
-	
+
+		
 public:
 	UAdvancedCharMovementComponent();
 
+public:
+	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
+
+protected:
+	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
+
+	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
+
+public:
+	UFUNCTION(BlueprintCallable) 
+	void SprintPressed();
+	
+	UFUNCTION(BlueprintCallable)
+	void SprintReleased();
 };
