@@ -60,4 +60,7 @@ public:
 	
 	UFUNCTION(BlueprintCallable)
 	void SprintReleased();
+
+	UFUNCTION(BlueprintCallable)
+	void CrouchPressed();
 };
