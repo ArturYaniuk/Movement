@@ -98,6 +98,18 @@ void AMovementCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputC
 	}
 }
 
+FCollisionQueryParams AMovementCharacter::GetIgnoreCharactersParams() const
+{
+	FCollisionQueryParams Params;
+
+	TArray<AActor*> CharacterChildren;
+	GetAllChildActors(CharacterChildren);
+	Params.AddIgnoredActors(CharacterChildren);
+	Params.AddIgnoredActor(this);
+
+	return Params;
+}
+
 void AMovementCharacter::Move(const FInputActionValue& Value)
 {
 	// input is a Vector2D

@@ -3,12 +3,19 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "MovementCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AdvancedCharMovementComponent.generated.h"
 
-/**
- * 
- */
+
+UENUM(BlueprintType)
+enum ECustomMovementMode
+{
+	CMOVE_None UMETA(Hidden),
+	CMOVE_Slide UMETA(DisplayName = "Slide"),
+	CMOVE_MAX UMETA(Hidden),
+};
+
 UCLASS()
 class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementComponent
 {
@@ -20,6 +27,10 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 
 		uint8 Saved_bWantsToSprint : 1;
 
+		uint8 Saved_bPrevWantsToCrouch: 1;
+
+
+	public:
 		virtual bool CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* InCharacter, float MaxDelta) const override;
 		virtual void Clear() override;
 		virtual uint8 GetCompressedFlags() const override;
@@ -36,25 +47,53 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 
 		virtual FSavedMovePtr AllocateNewMove() override;
 	};
+	
+	//Parameters
+	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed = 700.f;
+	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed = 250.f;
 
-	UPROPERTY(EditDefaultsOnly) float Sprint_MaxWalkSpeed;
-	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed;
+	UPROPERTY(EditDefaultsOnly) float Slide_MinSpeed = 350.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_EnterImpulse = 500.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_GravityForce = 5000.f;
+	UPROPERTY(EditDefaultsOnly) float Slide_Friction = 1.3f;
+	
+	UPROPERTY(Transient)
+	AMovementCharacter* MovementCharacterOwner;
 
 	bool Safe_bWantsToSprint;
-
+	bool Safe_bPrevWantsToCrouch;
 		
 public:
+	
 	UAdvancedCharMovementComponent();
-
-public:
+	
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
+	
+	
+	virtual bool IsMovingOnGround() const override;
+	virtual bool CanCrouchInCurrentState() const override;
 
 protected:
-	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 
+	virtual void InitializeComponent() override;
+	
+	virtual void UpdateFromCompressedFlags(uint8 Flags) override;
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 
+
+	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
+
+	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
+
+private:
+	
+	void EnterSlide();
+	void ExitSlide();
+	void PhysSlide(float deltaTime, int32 Iterations);
+	bool GetSlideSurface(FHitResult& Hit);
+
 public:
+	
 	UFUNCTION(BlueprintCallable) 
 	void SprintPressed();
 	
@@ -63,4 +102,7 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	void CrouchPressed();
+
+	UFUNCTION(BlueprintPure)
+	bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 };
