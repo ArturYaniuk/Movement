@@ -85,6 +85,7 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) float DashImpulse = 2000.f;
 	UPROPERTY(EditDefaultsOnly) float DashCooldownDuration = 1.f;
 	UPROPERTY(EditDefaultsOnly) float AutoDashCooldownDuration = .9f;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
 
 
 	
@@ -159,7 +160,7 @@ private:
 	// Dash
 	void OnDashCooldownFinished();
 	
-	bool CanDash();
+	bool CanDash() const;
 	void PerformDash();
 
 
