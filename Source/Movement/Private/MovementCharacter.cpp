@@ -23,6 +23,7 @@ AMovementCharacter::AMovementCharacter(const FObjectInitializer& ObjectInitializ
 {
 
 	AdvancedCharacterMovementComponent = Cast<UAdvancedCharMovementComponent>(GetCharacterMovement());
+	AdvancedCharacterMovementComponent->SetIsReplicated(true);
 	
 	// Set size for collision capsule
 	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);

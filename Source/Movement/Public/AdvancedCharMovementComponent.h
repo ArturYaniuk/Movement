@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "AdvancedCharMovementComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDashStartDelegate);
 
 UENUM(BlueprintType)
 enum ECustomMovementMode
@@ -22,18 +23,24 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 {
 	GENERATED_BODY()
 
+	// ReSharper disable once CppClassNeedsConstructorBecauseOfUninitializedMember
 	class FSavedMove_Movement : public FSavedMove_Character
 	{
+	public:
 		enum CompressedFlags
 		{
 			FLAG_Sprint     = 0x10,
-			FLAG_Custom_1   = 0x20,
+			FLAG_Dash	    = 0x20,
 			FLAG_Custom_2   = 0x40,
 			FLAG_Custom_3   = 0x80,
 		};
 
+	
+		// Flags
 		uint8 Saved_bWantsToSprint : 1;
+		uint8 Saved_bWantsToDash :1;
 		
+		// Other Variables
 		uint8 Saved_bPrevWantsToCrouch: 1;
 		uint8 Saved_bWantsToProne: 1;
 
@@ -73,22 +80,43 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) float ProneSlideEnterImpulse = 300.f;
 	UPROPERTY(EditDefaultsOnly) float MaxProneSpeed = 300.f;
 	UPROPERTY(EditDefaultsOnly) float BreakingDecelerationsProning = 2500.f;
-	
-	UPROPERTY(Transient)
-	AMovementCharacter* MovementCharacterOwner;
 
+	// Dash
+	UPROPERTY(EditDefaultsOnly) float DashImpulse = 2000.f;
+	UPROPERTY(EditDefaultsOnly) float DashCooldownDuration = 1.f;
+	UPROPERTY(EditDefaultsOnly) float AutoDashCooldownDuration = .9f;
+
+
+	
+	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
+
+	// Flags
+	
 	bool Safe_bWantsToSprint;
 	bool Safe_bPrevWantsToCrouch;
 	bool Safe_bWantsToProne;
+	bool Safe_bWantsToDash;
+
+	float DashStartTimer;
+	
 	FTimerHandle TimerHandle_EnterProne;
-		
+	FTimerHandle TimerHandle_DashCooldown;
+
+	// Replication
+	UPROPERTY(ReplicatedUsing=OnRep_DashStart) bool Proxy_bDashStart;
+
+	//	Delegates
 public:
 	
-	UAdvancedCharMovementComponent();
+	UPROPERTY(BlueprintAssignable) FDashStartDelegate DashStartDelegate;
 	
+	
+	UAdvancedCharMovementComponent();
+
+	// Network stuff
 	virtual FNetworkPredictionData_Client* GetPredictionData_Client() const override;
 	
-	
+	//Character Movement Component
 	virtual bool IsMovingOnGround() const override;
 	virtual bool CanCrouchInCurrentState() const override;
 
@@ -127,22 +155,34 @@ private:
 	bool CanProne() const;
 	void PhysProne(float deltaTime, int32 Iterations);
 
+	
+	// Dash
+	void OnDashCooldownFinished();
+	
+	bool CanDash();
+	void PerformDash();
+
+
 public:
 	
-	UFUNCTION(BlueprintCallable) 
-	void SprintPressed();
+	UFUNCTION(BlueprintCallable) void SprintPressed();
+	UFUNCTION(BlueprintCallable) void SprintReleased();
+
+	UFUNCTION(BlueprintCallable) void CrouchPressed();
+	UFUNCTION(BlueprintCallable) void CrouchReleased();
+
+	UFUNCTION(BlueprintCallable) void DashPressed();
+	UFUNCTION(BlueprintCallable) void DashReleased();
+
 	
-	UFUNCTION(BlueprintCallable)
-	void SprintReleased();
-
-	UFUNCTION(BlueprintCallable)
-	void CrouchPressed();
-
-	UFUNCTION(BlueprintCallable)
-	void CrouchReleased();
 
 	UFUNCTION(BlueprintPure)
 	bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 
 	UFUNCTION(BlueprintPure) bool IsMovementMode(EMovementMode InMovementMode) const;
+
+	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
+
+private:
+	UFUNCTION() void OnRep_DashStart();
 };

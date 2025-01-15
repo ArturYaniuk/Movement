@@ -6,6 +6,7 @@
 #include "MaterialHLSLTree.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
+#include "Net/UnrealNetwork.h"
 
 
 bool UAdvancedCharMovementComponent::FSavedMove_Movement::CanCombineWith(const FSavedMovePtr& NewMove, ACharacter* InCharacter, float MaxDelta) const
@@ -13,6 +14,11 @@ bool UAdvancedCharMovementComponent::FSavedMove_Movement::CanCombineWith(const F
 	FSavedMove_Movement* NewMovementMove = static_cast<FSavedMove_Movement*>(NewMove.Get());
 
 	if (Saved_bWantsToSprint != NewMovementMove ->Saved_bWantsToSprint)
+	{
+		return false;
+	}
+
+	if (Saved_bWantsToDash != NewMovementMove ->Saved_bWantsToDash)
 	{
 		return false;
 	}
@@ -25,13 +31,18 @@ void UAdvancedCharMovementComponent::FSavedMove_Movement::Clear()
 	FSavedMove_Character::Clear();
 
 	Saved_bWantsToSprint = 0;
+	Saved_bWantsToDash = 0;
+
+	Saved_bWantsToProne = 0;
+	Saved_bPrevWantsToCrouch = 0;
 }
 
 uint8 UAdvancedCharMovementComponent::FSavedMove_Movement::GetCompressedFlags() const
 {
 	uint8 Result = FSavedMove_Character::GetCompressedFlags();
 
-	if (Saved_bWantsToSprint) Result = FLAG_Sprint;
+	if (Saved_bWantsToSprint) Result |= FLAG_Sprint;
+	if (Saved_bWantsToDash) Result |= FLAG_Dash;
 
 	return Result;
 }
@@ -45,6 +56,7 @@ void UAdvancedCharMovementComponent::FSavedMove_Movement::SetMoveFor(ACharacter*
 	Saved_bWantsToSprint = CharacterMovement->Safe_bWantsToSprint;
 	Saved_bPrevWantsToCrouch = CharacterMovement->Safe_bPrevWantsToCrouch;
 	Saved_bWantsToProne = CharacterMovement->Safe_bWantsToProne;
+	Saved_bWantsToDash = CharacterMovement->Safe_bWantsToDash;
 }
 
 void UAdvancedCharMovementComponent::FSavedMove_Movement::PrepMoveFor(ACharacter* C)
@@ -56,6 +68,7 @@ void UAdvancedCharMovementComponent::FSavedMove_Movement::PrepMoveFor(ACharacter
 	CharacterMovement->Safe_bWantsToSprint = Saved_bWantsToSprint;
 	CharacterMovement->Safe_bPrevWantsToCrouch = Saved_bPrevWantsToCrouch;
 	CharacterMovement->Safe_bWantsToProne = Saved_bWantsToProne;
+	CharacterMovement->Safe_bWantsToDash = Saved_bWantsToDash;
 }
 
 UAdvancedCharMovementComponent::FNetworkPredictionData_Client_Movement::FNetworkPredictionData_Client_Movement(const UCharacterMovementComponent& ClientMovement)
@@ -95,7 +108,9 @@ void UAdvancedCharMovementComponent::InitializeComponent()
 void UAdvancedCharMovementComponent::UpdateFromCompressedFlags(uint8 Flags)
 {
 	Super::UpdateFromCompressedFlags(Flags);
-	Safe_bWantsToSprint = (Flags & FSavedMove_Character::FLAG_Custom_0) != 0;
+	
+	Safe_bWantsToSprint = (Flags & FSavedMove_Movement::FLAG_Sprint) != 0;
+	Safe_bWantsToDash = (Flags & FSavedMove_Movement::FLAG_Dash) != 0;
 }
 
 void UAdvancedCharMovementComponent::OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity)
@@ -153,7 +168,6 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 {
 	if (MovementMode == MOVE_Walking && !bWantsToCrouch && Safe_bPrevWantsToCrouch)
 	{
-		FHitResult PotentialSlideSurface;
 		if (CanSlide())
 		{
 			SetMovementMode(MOVE_Custom, CMOVE_Slide);
@@ -165,6 +179,7 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 		ExitSlide();
 	}
 
+	// Prone
 	if (Safe_bWantsToProne)
 	{
 		if (CanProne())
@@ -174,11 +189,27 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 		}
 		Safe_bWantsToProne = false;
 	}
-
 	if (IsCustomMovementMode(CMOVE_Prone) && !bWantsToCrouch)
 	{
 		SetMovementMode(MOVE_Walking);
 	}
+
+	// Dash
+	bool bAuthProxy = CharacterOwner->HasAuthority() && !CharacterOwner->IsLocallyControlled();
+	if (Safe_bWantsToDash && CanDash())
+	{
+		if (!bAuthProxy || GetWorld()->GetTimeSeconds() - DashStartTimer > AutoDashCooldownDuration)
+		{
+			PerformDash();
+			Safe_bWantsToDash = false;
+			Proxy_bDashStart = !Proxy_bDashStart;
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Client tried to cheat"));
+		}
+	}
+	
 	
 	Super::UpdateCharacterStateBeforeMovement(DeltaSeconds);
 }
@@ -658,6 +689,33 @@ void UAdvancedCharMovementComponent::PhysProne(float deltaTime, int32 Iterations
 	}
 }
 
+void UAdvancedCharMovementComponent::OnDashCooldownFinished()
+{
+	Safe_bWantsToDash = true;
+}
+
+bool UAdvancedCharMovementComponent::CanDash()
+{
+	return  IsWalking() && !IsCrouching();
+}
+
+void UAdvancedCharMovementComponent::PerformDash()
+{
+	DashStartTimer = GetWorld()->GetTimeSeconds();
+
+	FVector DashDirection = (Acceleration.IsNearlyZero() ? UpdatedComponent->GetForwardVector() : Acceleration).GetSafeNormal2D();
+
+	Velocity = DashImpulse * (DashDirection + FVector::UpVector * .1f);
+
+	FQuat NewRotation = FRotationMatrix::MakeFromXZ(DashDirection, FVector::UpVector).ToQuat();
+	FHitResult Hit;
+	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, Hit);
+
+	SetMovementMode(MOVE_Falling);
+
+	DashStartDelegate.Broadcast();
+}
+
 void UAdvancedCharMovementComponent::SprintPressed()
 {
 	Safe_bWantsToSprint = true;
@@ -679,6 +737,25 @@ void UAdvancedCharMovementComponent::CrouchReleased()
 	GetWorld()->GetTimerManager().ClearTimer(TimerHandle_EnterProne);
 }
 
+void UAdvancedCharMovementComponent::DashPressed()
+{
+	float CurrentTime = GetWorld()->GetTimeSeconds();
+	if (CurrentTime - DashStartTimer >= DashCooldownDuration)
+	{
+		Safe_bWantsToDash = true;
+	}
+	else
+	{
+		GetWorld()->GetTimerManager().SetTimer(TimerHandle_DashCooldown, this, &UAdvancedCharMovementComponent::OnDashCooldownFinished, DashCooldownDuration - (CurrentTime - DashStartTimer));
+	}
+}
+
+void UAdvancedCharMovementComponent::DashReleased()
+{
+	GetWorld()->GetTimerManager().ClearTimer(TimerHandle_DashCooldown);
+	Safe_bWantsToDash = false;
+}
+
 bool UAdvancedCharMovementComponent::IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const
 {
 	return MovementMode == MOVE_Custom && CustomMovementMode == InCustomMovementMode;
@@ -689,6 +766,21 @@ bool UAdvancedCharMovementComponent::IsMovementMode(EMovementMode InMovementMode
 	return InMovementMode == MovementMode;
 }
 
+void UAdvancedCharMovementComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
+	DOREPLIFETIME_CONDITION(UAdvancedCharMovementComponent, Proxy_bDashStart, COND_SkipOwner)
+}
+
+void UAdvancedCharMovementComponent::OnRep_DashStart()
+{
+	
+	DashStartDelegate.Broadcast();
+	
+}
+
+// ReSharper disable once CppPossiblyUninitializedMember
 UAdvancedCharMovementComponent::UAdvancedCharMovementComponent()
 {
 	NavAgentProps.bCanCrouch = true;
