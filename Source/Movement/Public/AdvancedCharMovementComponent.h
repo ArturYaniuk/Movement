@@ -38,11 +38,14 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	
 		// Flags
 		uint8 Saved_bWantsToSprint : 1;
-		uint8 Saved_bWantsToDash :1;
+		uint8 Saved_bWantsToDash : 1;
+		uint8 Saved_bPressedMovementJump : 1;
 		
 		// Other Variables
-		uint8 Saved_bPrevWantsToCrouch: 1;
-		uint8 Saved_bWantsToProne: 1;
+		uint8 Saved_bPrevWantsToCrouch : 1;
+		uint8 Saved_bWantsToProne : 1;
+		uint8 Saved_bHadAnimRootMotion : 1;
+		uint8 Saved_bTransitionFinished : 1;
 
 		
 	public:
@@ -87,6 +90,20 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) float AutoDashCooldownDuration = .9f;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
 
+	// Mantle
+
+	UPROPERTY(EditDefaultsOnly) float MantleMaxDistance = 200;
+	UPROPERTY(EditDefaultsOnly) float MantleReachHeight = 50;
+	UPROPERTY(EditDefaultsOnly) float MinMantleDepth = 30;
+	UPROPERTY(EditDefaultsOnly) float MantleMinWallSteepnessAngle = 75;
+	UPROPERTY(EditDefaultsOnly) float MantleMaxSurfaceAngle = 40;
+	UPROPERTY(EditDefaultsOnly) float MantleMaxAlignmentAngle = 45;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyShortMantleMontage;
 
 	
 	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
