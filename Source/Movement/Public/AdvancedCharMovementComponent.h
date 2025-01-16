@@ -38,11 +38,14 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	
 		// Flags
 		uint8 Saved_bWantsToSprint : 1;
-		uint8 Saved_bWantsToDash :1;
+		uint8 Saved_bWantsToDash : 1;
+		uint8 Saved_bPressedMovementJump : 1;
 		
 		// Other Variables
-		uint8 Saved_bPrevWantsToCrouch: 1;
-		uint8 Saved_bWantsToProne: 1;
+		uint8 Saved_bPrevWantsToCrouch : 1;
+		uint8 Saved_bWantsToProne : 1;
+		uint8 Saved_bHadAnimRootMotion : 1;
+		uint8 Saved_bTransitionFinished : 1;
 
 		
 	public:
@@ -87,6 +90,20 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) float AutoDashCooldownDuration = .9f;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
 
+	// Mantle
+
+	UPROPERTY(EditDefaultsOnly) float MantleMaxDistance = 200;
+	UPROPERTY(EditDefaultsOnly) float MantleReachHeight = 50;
+	UPROPERTY(EditDefaultsOnly) float MinMantleDepth = 30;
+	UPROPERTY(EditDefaultsOnly) float MantleMinWallSteepnessAngle = 75;
+	UPROPERTY(EditDefaultsOnly) float MantleMaxSurfaceAngle = 40;
+	UPROPERTY(EditDefaultsOnly) float MantleMaxAlignmentAngle = 45;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyShortMantleMontage;
 
 	
 	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
@@ -94,17 +111,26 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	// Flags
 	
 	bool Safe_bWantsToSprint;
-	bool Safe_bPrevWantsToCrouch;
 	bool Safe_bWantsToProne;
 	bool Safe_bWantsToDash;
 
+	bool Safe_bHadAnimRootMotion;
+	bool Safe_bPrevWantsToCrouch;
 	float DashStartTimer;
-	
 	FTimerHandle TimerHandle_EnterProne;
 	FTimerHandle TimerHandle_DashCooldown;
 
+	bool Safe_bTransitionFinished;
+	TSharedPtr<FRootMotionSource_MoveToForce> TransitionRMS;
+	UPROPERTY(Transient) UAnimMontage* TransitionQueuedMontage;
+	float TransitionQueuedMontageSpeed;
+	int TransitionRMS_ID;
+
 	// Replication
 	UPROPERTY(ReplicatedUsing=OnRep_DashStart) bool Proxy_bDashStart;
+
+	UPROPERTY(ReplicatedUsing=OnRep_ShortMantle) bool Proxy_bShortMantle;
+	UPROPERTY(ReplicatedUsing=OnRep_TallMantle) bool Proxy_bTallMantle;
 
 	//	Delegates
 public:
@@ -132,6 +158,7 @@ protected:
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
+	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
 
@@ -163,6 +190,16 @@ private:
 	bool CanDash() const;
 	void PerformDash();
 
+	// Mantle
+
+	bool TryMantle();
+	FVector GetMantleStartLocation(FHitResult& FrontHit, FHitResult SurfaceHit, bool bTallMantle) const;
+
+	// Helpers
+
+	bool IsServer() const;
+	float CapR() const;
+	float CapHH() const;
 
 public:
 	
@@ -186,4 +223,6 @@ public:
 
 private:
 	UFUNCTION() void OnRep_DashStart();
+	UFUNCTION() void OnRep_ShortMantle();
+	UFUNCTION() void OnRep_TallMantle();
 };

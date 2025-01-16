@@ -61,6 +61,22 @@ AMovementCharacter::AMovementCharacter(const FObjectInitializer& ObjectInitializ
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
 }
 
+void AMovementCharacter::Jump()
+{
+	Super::Jump();
+
+	bPressedMovementJump = true;
+	
+	bPressedJump = false;
+}
+
+void AMovementCharacter::StopJumping()
+{
+	Super::StopJumping();
+
+	bPressedMovementJump = false;
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Input
 

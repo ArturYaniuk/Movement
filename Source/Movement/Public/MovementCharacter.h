@@ -51,6 +51,11 @@ private:
 
 public:
 	AMovementCharacter(const FObjectInitializer& ObjectInitializer);
+
+	bool bPressedMovementJump;
+
+	virtual void Jump() override;
+	virtual void StopJumping() override;
 	
 
 protected:
