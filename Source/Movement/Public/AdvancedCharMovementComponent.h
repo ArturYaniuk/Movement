@@ -111,17 +111,26 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	// Flags
 	
 	bool Safe_bWantsToSprint;
-	bool Safe_bPrevWantsToCrouch;
 	bool Safe_bWantsToProne;
 	bool Safe_bWantsToDash;
 
+	bool Safe_bHadAnimRootMotion;
+	bool Safe_bPrevWantsToCrouch;
 	float DashStartTimer;
-	
 	FTimerHandle TimerHandle_EnterProne;
 	FTimerHandle TimerHandle_DashCooldown;
 
+	bool Safe_bTransitionFinished;
+	TSharedPtr<FRootMotionSource_MoveToForce> TransitionRMS;
+	UPROPERTY(Transient) UAnimMontage* TransitionQueuedMontage;
+	float TransitionQueuedMontageSpeed;
+	int TransitionRMS_ID;
+
 	// Replication
 	UPROPERTY(ReplicatedUsing=OnRep_DashStart) bool Proxy_bDashStart;
+
+	UPROPERTY(ReplicatedUsing=OnRep_ShortMantle) bool Proxy_bShortMantle;
+	UPROPERTY(ReplicatedUsing=OnRep_TallMantle) bool Proxy_bTallMantle;
 
 	//	Delegates
 public:
@@ -149,6 +158,7 @@ protected:
 	virtual void OnMovementUpdated(float DeltaSeconds, const FVector& OldLocation, const FVector& OldVelocity) override;
 
 	virtual void UpdateCharacterStateBeforeMovement(float DeltaSeconds) override;
+	virtual void UpdateCharacterStateAfterMovement(float DeltaSeconds) override;
 
 	virtual void PhysCustom(float deltaTime, int32 Iterations) override;
 
@@ -180,6 +190,16 @@ private:
 	bool CanDash() const;
 	void PerformDash();
 
+	// Mantle
+
+	bool TryMantle();
+	FVector GetMantleStartLocation(FHitResult& FrontHit, FHitResult SurfaceHit, bool bTallMantle) const;
+
+	// Helpers
+
+	bool IsServer() const;
+	float CapR() const;
+	float CapHH() const;
 
 public:
 	
@@ -203,4 +223,6 @@ public:
 
 private:
 	UFUNCTION() void OnRep_DashStart();
+	UFUNCTION() void OnRep_ShortMantle();
+	UFUNCTION() void OnRep_TallMantle();
 };
