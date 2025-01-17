@@ -8,6 +8,7 @@
 #include "GameFramework/Character.h"
 #include "Net/UnrealNetwork.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/OverlapResult.h"
 
 // Helper Macros
 #if 0
@@ -1144,6 +1145,86 @@ void UAdvancedCharMovementComponent::PhysWallRun(float deltaTime, int32 Iteratio
 	{
 		SetMovementMode(MOVE_Falling);
 	}
+}
+
+#pragma endregion
+
+#pragma region Climbing
+bool UAdvancedCharMovementComponent::TryHang()
+	{
+		if (!IsMovementMode(MOVE_Falling)) return false;
+
+
+	FHitResult WallHit;
+	if (!GetWorld()->LineTraceSingleByProfile(WallHit, UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + UpdatedComponent->GetForwardVector() * 300, "BlockAll", MovementCharacterOwner->GetIgnoreCharactersParams()))
+		return false;
+
+	TArray<FOverlapResult> OverlapResults;
+
+	FVector ColLoc = UpdatedComponent->GetComponentLocation() + FVector::UpVector * CapHH() + UpdatedComponent->GetForwardVector() * CapR() * 3;
+	auto ColBox = FCollisionShape::MakeBox(FVector(100, 100, 50));
+	FQuat ColRot = FRotationMatrix::MakeFromXZ(WallHit.Normal, FVector::UpVector).ToQuat();
+
+	if (!GetWorld()->OverlapMultiByChannel(OverlapResults, ColLoc, ColRot, ECC_WorldStatic, ColBox, MovementCharacterOwner->GetIgnoreCharactersParams()))
+		return false;
+
+	AActor* ClimbPoint = nullptr;
+
+	float MaxHeight = -1e20;
+	for (FOverlapResult Result : OverlapResults)
+	{
+		if (Result.GetActor()->ActorHasTag("Climb Point"))
+		{
+			float Height = Result.GetActor()->GetActorLocation().Z;
+			if (Height > MaxHeight)
+			{
+				MaxHeight = Height;
+				ClimbPoint = Result.GetActor();
+			}
+		}
+	}
+	if (!IsValid(ClimbPoint)) return false;
+
+	FVector TargetLocation = ClimbPoint->GetActorLocation() + WallHit.Normal * CapR() * 1.01f + FVector::DownVector * CapHH();
+	FQuat TargetRotation = FRotationMatrix::MakeFromXZ(-WallHit.Normal, FVector::UpVector).ToQuat();
+
+
+	// Test if character can reach goal
+	FTransform CurrentTransform = UpdatedComponent->GetComponentTransform();
+	FHitResult Hit, ReturnHit;
+	SafeMoveUpdatedComponent(TargetLocation - UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentQuat(), true, Hit);
+	FVector ResultLocation = UpdatedComponent->GetComponentLocation();
+	SafeMoveUpdatedComponent(CurrentTransform.GetLocation() - ResultLocation, TargetRotation, false, ReturnHit);
+	if (!ResultLocation.Equals(TargetLocation)) return false;
+
+	// Passed all conditions
+
+	bOrientRotationToMovement = false;
+
+	// Perform Transition to Climb Point
+	float UpSpeed = Velocity | FVector::UpVector;
+	float TransDistance = FVector::Dist(TargetLocation, UpdatedComponent->GetComponentLocation());
+
+	TransitionQueuedMontageSpeed = FMath::GetMappedRangeValueClamped(FVector2D(-500, 750), FVector2D(.9f, 1.2f), UpSpeed);
+	TransitionRMS.Reset();
+	TransitionRMS = MakeShared<FRootMotionSource_MoveToForce>();
+	TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
+
+	TransitionRMS->Duration = FMath::Clamp(TransDistance / 500.f, .1f, .25f);
+	TransitionRMS->StartLocation = UpdatedComponent->GetComponentLocation();
+	TransitionRMS->TargetLocation = TargetLocation;
+
+	// Apply Transition Root Motion Source
+	Velocity = FVector::ZeroVector;
+	SetMovementMode(MOVE_Flying);
+	TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
+
+	// Animations
+	TransitionQueuedMontage = nullptr;
+	TransitionName = "Hang";
+	CharacterOwner->PlayAnimMontage(TransitionHangMontage, 1 / TransitionRMS->Duration);
+
+	return true;
 }
 #pragma endregion
 
