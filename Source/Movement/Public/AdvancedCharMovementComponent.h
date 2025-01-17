@@ -12,10 +12,11 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDashStartDelegate);
 UENUM(BlueprintType)
 enum ECustomMovementMode
 {
-	CMOVE_None UMETA(Hidden),
-	CMOVE_Slide UMETA(DisplayName = "Slide"),
-	CMOVE_Prone UMETA(DisplayName = "Prone"),
-	CMOVE_MAX UMETA(Hidden),
+	CMOVE_None			UMETA(Hidden),
+	CMOVE_Slide			UMETA(DisplayName = "Slide"),
+	CMOVE_Prone			UMETA(DisplayName = "Prone"),
+	CMOVE_WallRun		UMETA(DisplayName = "WallRun"),
+	CMOVE_MAX			UMETA(Hidden),
 };
 
 UCLASS()
@@ -46,6 +47,7 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 		uint8 Saved_bWantsToProne : 1;
 		uint8 Saved_bHadAnimRootMotion : 1;
 		uint8 Saved_bTransitionFinished : 1;
+		uint8 Saved_bWallRunIsRight : 1;
 
 		
 	public:
@@ -91,7 +93,6 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
 
 	// Mantle
-
 	UPROPERTY(EditDefaultsOnly) float MantleMaxDistance = 200;
 	UPROPERTY(EditDefaultsOnly) float MantleReachHeight = 50;
 	UPROPERTY(EditDefaultsOnly) float MinMantleDepth = 30;
@@ -105,6 +106,15 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionShortMantleMontage;
 	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyShortMantleMontage;
 
+	// Wall Run
+	UPROPERTY(EditDefaultsOnly) float MinWallRunSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly) float MaxWallRunSpeed = 800.f;
+	UPROPERTY(EditDefaultsOnly) float MaxVerticalWallRunSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly) float WallRunPullAwayAngle = 75;
+	UPROPERTY(EditDefaultsOnly) float WallAttractionForce = 200.f;
+	UPROPERTY(EditDefaultsOnly) float MinWallRunHeight = 50.f;
+	UPROPERTY(EditDefaultsOnly) UCurveFloat* WallRunGravityScaleCurve;
+	UPROPERTY(EditDefaultsOnly) float WallJumpOffForce = 300.f;
 	
 	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
 
@@ -125,6 +135,8 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(Transient) UAnimMontage* TransitionQueuedMontage;
 	float TransitionQueuedMontageSpeed;
 	int TransitionRMS_ID;
+
+	bool Safe_bWallRunIsRight;
 
 	// Replication
 	UPROPERTY(ReplicatedUsing=OnRep_DashStart) bool Proxy_bDashStart;
@@ -150,6 +162,9 @@ public:
 	virtual float GetMaxSpeed() const override;
 	virtual float GetMaxBrakingDeceleration() const override;
 
+	virtual bool CanAttemptJump() const override;
+	virtual bool DoJump(bool bReplayingMoves, float DeltaTime) override;
+
 protected:
 
 	virtual void InitializeComponent() override;
@@ -166,15 +181,14 @@ protected:
 
 
 private:
-	// Slide
 	
+	// Slide
 	void EnterSlide(EMovementMode PrevMode, ECustomMovementMode PrevCustomMode);
 	void ExitSlide();
 	void PhysSlide(float deltaTime, int32 Iterations);
 	bool CanSlide() const;
 
 	// Prone
-
 	void TryEnterProne() { Safe_bWantsToProne = true; }
 	UFUNCTION(Server, Reliable) void Server_EnterProne();
 	
@@ -191,12 +205,14 @@ private:
 	void PerformDash();
 
 	// Mantle
-
 	bool TryMantle();
 	FVector GetMantleStartLocation(FHitResult& FrontHit, FHitResult SurfaceHit, bool bTallMantle) const;
+	
+	// Wall Run
+	bool TryWallRun();
+	void PhysWallRun(float deltaTime, int32 Iterations);
 
 	// Helpers
-
 	bool IsServer() const;
 	float CapR() const;
 	float CapHH() const;
@@ -212,13 +228,15 @@ public:
 	UFUNCTION(BlueprintCallable) void DashPressed();
 	UFUNCTION(BlueprintCallable) void DashReleased();
 
-	
-
 	UFUNCTION(BlueprintPure)
 	bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 
 	UFUNCTION(BlueprintPure) bool IsMovementMode(EMovementMode InMovementMode) const;
 
+	UFUNCTION(BlueprintPure) bool IsWallRunning() const { return IsCustomMovementMode(CMOVE_WallRun); };
+	UFUNCTION(BlueprintPure) bool WallRunningIsRight() const { return Safe_bWallRunIsRight; };
+	
+	// Proxy Replication
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 private:
