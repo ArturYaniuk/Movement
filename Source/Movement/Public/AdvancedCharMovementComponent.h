@@ -16,6 +16,8 @@ enum ECustomMovementMode
 	CMOVE_Slide			UMETA(DisplayName = "Slide"),
 	CMOVE_Prone			UMETA(DisplayName = "Prone"),
 	CMOVE_WallRun		UMETA(DisplayName = "WallRun"),
+	CMOVE_Hang 			UMETA(DisplayName = "Hang"),
+	CMOVE_Climb			UMETA(DisplayName = "Climb"),
 	CMOVE_MAX			UMETA(Hidden),
 };
 
@@ -116,6 +118,16 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	UPROPERTY(EditDefaultsOnly) UCurveFloat* WallRunGravityScaleCurve;
 	UPROPERTY(EditDefaultsOnly) float WallJumpOffForce = 300.f;
 	
+	// Hang
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionHangMontage;
+	UPROPERTY(EditDefaultsOnly) UAnimMontage* WallJumpMontage;
+	UPROPERTY(EditDefaultsOnly) float WallJumpForce = 400.f;
+
+	// Climb
+	UPROPERTY(EditDefaultsOnly) float MaxClimbSpeed = 300.f;
+	UPROPERTY(EditDefaultsOnly) float BreakingDecelerationClimbing = 1000.f;
+	UPROPERTY(EditDefaultsOnly) float ClimbReachDistance = 200.f;
+	
 	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
 
 	// Flags
@@ -133,6 +145,7 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	bool Safe_bTransitionFinished;
 	TSharedPtr<FRootMotionSource_MoveToForce> TransitionRMS;
 	UPROPERTY(Transient) UAnimMontage* TransitionQueuedMontage;
+	FString TransitionName;
 	float TransitionQueuedMontageSpeed;
 	int TransitionRMS_ID;
 
@@ -212,6 +225,13 @@ private:
 	bool TryWallRun();
 	void PhysWallRun(float deltaTime, int32 Iterations);
 
+	// Try Climb
+
+	bool TryHang();
+
+	bool TryClimb();
+	void PhysClimb(float deltaTime, int32 Iterations);
+
 	// Helpers
 	bool IsServer() const;
 	float CapR() const;
@@ -228,6 +248,9 @@ public:
 	UFUNCTION(BlueprintCallable) void DashPressed();
 	UFUNCTION(BlueprintCallable) void DashReleased();
 
+	UFUNCTION(BlueprintCallable) void ClimbPressed();
+	UFUNCTION(BlueprintCallable) void ClimbReleased();
+
 	UFUNCTION(BlueprintPure)
 	bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 
@@ -235,6 +258,9 @@ public:
 
 	UFUNCTION(BlueprintPure) bool IsWallRunning() const { return IsCustomMovementMode(CMOVE_WallRun); };
 	UFUNCTION(BlueprintPure) bool WallRunningIsRight() const { return Safe_bWallRunIsRight; };
+	UFUNCTION(BlueprintPure) bool IsHanging() const { return IsCustomMovementMode(CMOVE_Hang); }
+	UFUNCTION(BlueprintPure) bool IsClimbing() const { return IsCustomMovementMode(CMOVE_Climb); }
+
 	
 	// Proxy Replication
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;

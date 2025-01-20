@@ -8,6 +8,7 @@
 #include "GameFramework/Character.h"
 #include "Net/UnrealNetwork.h"
 #include "DrawDebugHelpers.h"
+#include "Engine/OverlapResult.h"
 
 // Helper Macros
 #if 0
@@ -192,6 +193,10 @@ float UAdvancedCharMovementComponent::GetMaxSpeed() const
 		return MaxProneSpeed;
 	case CMOVE_WallRun:
 		return MaxWallRunSpeed;
+	case CMOVE_Hang:
+		return 0;
+	case CMOVE_Climb:
+		return MaxClimbSpeed;
 	default:
 		UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
 		return -1.f;
@@ -210,6 +215,10 @@ float UAdvancedCharMovementComponent::GetMaxBrakingDeceleration() const
 		return BreakingDecelerationsProning;
 	case CMOVE_WallRun:
 		return 0.f;
+	case CMOVE_Hang:
+		return 0.f;
+	case CMOVE_Climb:
+		return BreakingDecelerationClimbing;
 	default:
 		UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
 		return -1.f;
@@ -218,12 +227,13 @@ float UAdvancedCharMovementComponent::GetMaxBrakingDeceleration() const
 
 bool UAdvancedCharMovementComponent::CanAttemptJump() const
 {
-	return Super::CanAttemptJump() || IsWallRunning();
+	return Super::CanAttemptJump() || IsWallRunning() || IsHanging() || IsCrouching();
 }
 
 bool UAdvancedCharMovementComponent::DoJump(bool bReplayingMoves, float DeltaTime)
 {
 	bool bWasWallRunning = IsWallRunning();
+	bool bWasOnWall = IsHanging() || IsClimbing();
 	if (Super::DoJump(bReplayingMoves, DeltaTime))
 	{
 		if (bWasWallRunning)
@@ -235,6 +245,15 @@ bool UAdvancedCharMovementComponent::DoJump(bool bReplayingMoves, float DeltaTim
 			FHitResult WallHit;
 			GetWorld()->LineTraceSingleByProfile(WallHit, Start, End, "BlockAll", Params);
 			Velocity += WallHit.Normal * WallJumpOffForce;
+		}
+		else if (bWasOnWall)
+		{
+			if (!bReplayingMoves)
+			{
+				CharacterOwner->PlayAnimMontage(WallJumpMontage);
+			}
+			Velocity += FVector::UpVector * WallJumpForce * .5f;
+			Velocity += Acceleration.GetSafeNormal2D() * WallJumpForce * .5f;
 		}
 		return true;
 	}
@@ -251,10 +270,18 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 			SetMovementMode(MOVE_Custom, CMOVE_Slide);
 		}
 	}
-
-	if (IsCustomMovementMode(CMOVE_Slide) && !bWantsToCrouch)
+	else if (IsCustomMovementMode(CMOVE_Slide) && !bWantsToCrouch)
 	{
-		ExitSlide();
+		SetMovementMode(MOVE_Walking);
+	}
+	else if (IsFalling() && bWantsToCrouch)
+	{
+		if (TryClimb()) bWantsToCrouch = false;
+	}
+	else if ((IsClimbing() || IsHanging()) && bWantsToCrouch)
+	{
+		SetMovementMode(MOVE_Falling);
+		bWantsToCrouch = false;
 	}
 
 	// Prone
@@ -291,9 +318,20 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 	// Try Mantle
 	if (MovementCharacterOwner->bPressedMovementJump)
 	{
+		if (IsClimbing())
+		{
+			TryMantle();
+		}
+		SLOG("bPressedMovementJump")
 		if (TryMantle())
 		{
+			SLOG("Trying Mantle")
 			MovementCharacterOwner->StopJumping();
+		}
+		else if (TryHang())
+		{
+			SLOG("Trying Hang")
+			MovementCharacterOwner->StopJumping();		
 		}
 		else
 		{
@@ -301,24 +339,38 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 			MovementCharacterOwner->bPressedMovementJump = false;
 			CharacterOwner->bPressedJump = true;
 			CharacterOwner->CheckJumpInput(DeltaSeconds);
+			bOrientRotationToMovement = true;
 		}
 	}
 
+	// Transition
+
 	if (Safe_bTransitionFinished)
 	{
-		SLOG("Transition finished");
-		UE_LOG(LogTemp, Warning, TEXT("FINISHED RM"));
-		if (IsValid(TransitionQueuedMontage))
+		SLOG("Transition Finished")
+		UE_LOG(LogTemp, Warning, TEXT("FINISHED RM"))
+
+		if (TransitionName == "Mantle")
 		{
-			SetMovementMode(MOVE_Flying);
-			CharacterOwner->PlayAnimMontage(TransitionQueuedMontage, TransitionQueuedMontageSpeed);
-			TransitionQueuedMontageSpeed = 0.0f;
-			TransitionQueuedMontage = nullptr;
+			if (IsValid(TransitionQueuedMontage))
+			{
+				SetMovementMode(MOVE_Flying);
+				CharacterOwner->PlayAnimMontage(TransitionQueuedMontage, TransitionQueuedMontageSpeed);
+				TransitionQueuedMontageSpeed = 0.f;
+				TransitionQueuedMontage = nullptr;
+			}
+			else
+			{
+				SetMovementMode(MOVE_Walking);
+			}
 		}
-		else
+		else if (TransitionName == "Hang")
 		{
-			SetMovementMode(MOVE_Walking);
+			SetMovementMode(MOVE_Custom, CMOVE_Hang);
+			Velocity = FVector::ZeroVector;
 		}
+ 
+		TransitionName = "";
 		Safe_bTransitionFinished = false;
 	}
 
@@ -363,6 +415,11 @@ void UAdvancedCharMovementComponent::PhysCustom(float deltaTime, int32 Iteration
 		case CMOVE_WallRun:
 			PhysWallRun(deltaTime, Iterations);
 			break;
+		case CMOVE_Hang:
+			break;
+		case CMOVE_Climb:
+			PhysClimb(deltaTime, Iterations);
+			break;
 		default:
 			UE_LOG(LogTemp, Fatal, TEXT("Invalid Movement Mode"))
 	}
@@ -377,6 +434,11 @@ void UAdvancedCharMovementComponent::OnMovementModeChanged(EMovementMode Previou
 
 	if (IsCustomMovementMode(CMOVE_Slide)) EnterSlide(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
 	if (IsCustomMovementMode(CMOVE_Prone)) EnterProne(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
+	
+	if (IsFalling())
+	{
+		bOrientRotationToMovement = true;
+	}
 
 	if (IsWallRunning() && GetOwnerRole() == ROLE_SimulatedProxy)
 	{
@@ -865,7 +927,8 @@ void UAdvancedCharMovementComponent::PerformDash()
 #pragma region Mantle
 bool UAdvancedCharMovementComponent::TryMantle()
 {
-	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Falling)) return false;
+	
+	if ((!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Falling)) && !IsCustomMovementMode(CMOVE_Climb)) return false;
 
 	// Helper Variables
 	FVector BaseLoc = UpdatedComponent->GetComponentLocation() + FVector::DownVector * CapHH();
@@ -974,6 +1037,8 @@ SLOG(FString::Printf(TEXT("Duration: %f"), TransitionRMS->Duration))
 	Velocity = FVector::ZeroVector;
 	SetMovementMode(MOVE_Flying);
 	TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
+	TransitionName = "Mantle";
+
 
 	// Animations
 	if (bTallMantle)
@@ -1145,6 +1210,154 @@ void UAdvancedCharMovementComponent::PhysWallRun(float deltaTime, int32 Iteratio
 		SetMovementMode(MOVE_Falling);
 	}
 }
+
+#pragma endregion
+
+#pragma region Climbing
+bool UAdvancedCharMovementComponent::TryHang()
+	{
+	if (!IsMovementMode(MOVE_Falling)) return false;
+
+
+	FHitResult WallHit;
+	if (!GetWorld()->LineTraceSingleByProfile(WallHit, UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentLocation() + UpdatedComponent->GetForwardVector() * 300, "BlockAll", MovementCharacterOwner->GetIgnoreCharactersParams()))
+		return false;
+
+	TArray<FOverlapResult> OverlapResults;
+
+	FVector ColLoc = UpdatedComponent->GetComponentLocation() + FVector::UpVector * CapHH() + UpdatedComponent->GetForwardVector() * CapR() * 3;
+	auto ColBox = FCollisionShape::MakeBox(FVector(100, 100, 50));
+	FQuat ColRot = FRotationMatrix::MakeFromXZ(WallHit.Normal, FVector::UpVector).ToQuat();
+
+	if (!GetWorld()->OverlapMultiByChannel(OverlapResults, ColLoc, ColRot, ECC_WorldStatic, ColBox, MovementCharacterOwner->GetIgnoreCharactersParams()))
+		return false;
+
+	AActor* ClimbPoint = nullptr;
+
+	float MaxHeight = -1e20;
+	for (FOverlapResult Result : OverlapResults)
+	{
+		if (Result.GetActor()->ActorHasTag("Climb Point"))
+		{
+			float Height = Result.GetActor()->GetActorLocation().Z;
+			if (Height > MaxHeight)
+			{
+				MaxHeight = Height;
+				ClimbPoint = Result.GetActor();
+			}
+		}
+	}
+	if (!IsValid(ClimbPoint)) return false;
+
+	FVector TargetLocation = ClimbPoint->GetActorLocation() + WallHit.Normal * CapR() * 1.01f + FVector::DownVector * CapHH();
+	FQuat TargetRotation = FRotationMatrix::MakeFromXZ(-WallHit.Normal, FVector::UpVector).ToQuat();
+
+
+	// Test if character can reach goal
+	FTransform CurrentTransform = UpdatedComponent->GetComponentTransform();
+	FHitResult Hit, ReturnHit;
+	SafeMoveUpdatedComponent(TargetLocation - UpdatedComponent->GetComponentLocation(), UpdatedComponent->GetComponentQuat(), true, Hit);
+	FVector ResultLocation = UpdatedComponent->GetComponentLocation();
+	SafeMoveUpdatedComponent(CurrentTransform.GetLocation() - ResultLocation, TargetRotation, false, ReturnHit);
+	if (!ResultLocation.Equals(TargetLocation)) return false;
+
+	// Passed all conditions
+
+	bOrientRotationToMovement = false;
+
+	// Perform Transition to Climb Point
+	float UpSpeed = Velocity | FVector::UpVector;
+	float TransDistance = FVector::Dist(TargetLocation, UpdatedComponent->GetComponentLocation());
+
+	TransitionQueuedMontageSpeed = FMath::GetMappedRangeValueClamped(FVector2D(-500, 750), FVector2D(.9f, 1.2f), UpSpeed);
+	TransitionRMS.Reset();
+	TransitionRMS = MakeShared<FRootMotionSource_MoveToForce>();
+	TransitionRMS->AccumulateMode = ERootMotionAccumulateMode::Override;
+
+	TransitionRMS->Duration = FMath::Clamp(TransDistance / 500.f, .1f, .25f);
+	TransitionRMS->StartLocation = UpdatedComponent->GetComponentLocation();
+	TransitionRMS->TargetLocation = TargetLocation;
+
+	// Apply Transition Root Motion Source
+	Velocity = FVector::ZeroVector;
+	SetMovementMode(MOVE_Flying);
+	TransitionRMS_ID = ApplyRootMotionSource(TransitionRMS);
+
+	// Animations
+	TransitionQueuedMontage = nullptr;
+	TransitionName = "Hang";
+	CharacterOwner->PlayAnimMontage(TransitionHangMontage, 1 / TransitionRMS->Duration);
+
+	return true;
+}
+
+bool UAdvancedCharMovementComponent::TryClimb()
+{
+	if (!IsFalling()) return false;
+	
+	FHitResult SurfaceHit;
+	FVector CapLoc = UpdatedComponent->GetComponentLocation();
+	GetWorld()->LineTraceSingleByProfile(SurfaceHit, CapLoc, CapLoc + UpdatedComponent->GetForwardVector() * ClimbReachDistance, "Block All", MovementCharacterOwner->GetIgnoreCharactersParams());
+
+	if (!SurfaceHit.IsValidBlockingHit()) return false;
+
+	FQuat NewRotation = FRotationMatrix::MakeFromXZ(-SurfaceHit.Normal, FVector::UpVector).ToQuat();
+	SafeMoveUpdatedComponent(FVector::ZeroVector, NewRotation, false, SurfaceHit);
+
+	SetMovementMode(MOVE_Custom, CMOVE_Climb);
+
+	bOrientRotationToMovement = false;
+	
+	return true;
+}
+
+void UAdvancedCharMovementComponent::PhysClimb(float deltaTime, int32 Iterations)
+{
+	if (deltaTime < MIN_TICK_TIME)
+	{
+		return;
+	}
+	if (!CharacterOwner || (!CharacterOwner->Controller && !bRunPhysicsWithNoController && !HasAnimRootMotion() && !CurrentRootMotion.HasOverrideVelocity() && (CharacterOwner->GetLocalRole() != ROLE_SimulatedProxy)))
+	{
+		Acceleration = FVector::ZeroVector;
+		Velocity = FVector::ZeroVector;
+		return;
+	}
+
+	// Perform the move
+	bJustTeleported = false;
+	Iterations++;
+	const FVector OldLocation = UpdatedComponent->GetComponentLocation();
+	FHitResult SurfHit, FloorHit;
+	GetWorld()->LineTraceSingleByProfile(SurfHit, OldLocation, OldLocation + UpdatedComponent->GetForwardVector() * ClimbReachDistance, "BlockAll", MovementCharacterOwner->GetIgnoreCharactersParams());
+	GetWorld()->LineTraceSingleByProfile(FloorHit, OldLocation, OldLocation + FVector::DownVector * CapHH() * 1.2f, "BlockAll", MovementCharacterOwner->GetIgnoreCharactersParams());
+	if (!SurfHit.IsValidBlockingHit() || FloorHit.IsValidBlockingHit())
+	{
+		SetMovementMode(MOVE_Falling);
+		StartNewPhysics(deltaTime, Iterations);
+		return;
+	}
+
+	// Transform Acceleration
+	Acceleration.Z = 0.f;
+	Acceleration = Acceleration.RotateAngleAxis(90.f, -UpdatedComponent->GetRightVector());
+
+	// Apply acceleration
+	CalcVelocity(deltaTime, 0.f, false, GetMaxBrakingDeceleration());
+	Velocity = FVector::VectorPlaneProject(Velocity, SurfHit.Normal);
+
+	// Compute move parameters
+	const FVector Delta = deltaTime * Velocity; // dx = v * dt
+	if (!Delta.IsNearlyZero())
+	{
+		FHitResult Hit;
+		SafeMoveUpdatedComponent(Delta, UpdatedComponent->GetComponentQuat(), true, Hit);
+		FVector WallAttractionDelta = -SurfHit.Normal * WallAttractionForce * deltaTime;
+		SafeMoveUpdatedComponent(WallAttractionDelta, UpdatedComponent->GetComponentQuat(), true, Hit);
+	}
+
+	Velocity = (UpdatedComponent->GetComponentLocation() - OldLocation) / deltaTime; // v = dx / dt
+}
 #pragma endregion
 
 #pragma region Helpers
@@ -1203,6 +1416,16 @@ void UAdvancedCharMovementComponent::DashReleased()
 {
 	GetWorld()->GetTimerManager().ClearTimer(TimerHandle_DashCooldown);
 	Safe_bWantsToDash = false;
+}
+
+void UAdvancedCharMovementComponent::ClimbPressed()
+{
+	if (IsFalling() || IsCrouching() || IsHanging()) bWantsToCrouch = true;
+}
+
+void UAdvancedCharMovementComponent::ClimbReleased()
+{
+	bWantsToCrouch = false;
 }
 
 bool UAdvancedCharMovementComponent::IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const
