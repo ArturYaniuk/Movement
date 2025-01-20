@@ -125,7 +125,7 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 
 	// Climb
 	UPROPERTY(EditDefaultsOnly) float MaxClimbSpeed = 300.f;
-	UPROPERTY(EditDefaultsOnly) float BrakingDecelerationClimbing = 1000.f;
+	UPROPERTY(EditDefaultsOnly) float BreakingDecelerationClimbing = 1000.f;
 	UPROPERTY(EditDefaultsOnly) float ClimbReachDistance = 200.f;
 	
 	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
@@ -248,6 +248,9 @@ public:
 	UFUNCTION(BlueprintCallable) void DashPressed();
 	UFUNCTION(BlueprintCallable) void DashReleased();
 
+	UFUNCTION(BlueprintCallable) void ClimbPressed();
+	UFUNCTION(BlueprintCallable) void ClimbReleased();
+
 	UFUNCTION(BlueprintPure)
 	bool IsCustomMovementMode(ECustomMovementMode InCustomMovementMode) const;
 
@@ -255,6 +258,9 @@ public:
 
 	UFUNCTION(BlueprintPure) bool IsWallRunning() const { return IsCustomMovementMode(CMOVE_WallRun); };
 	UFUNCTION(BlueprintPure) bool WallRunningIsRight() const { return Safe_bWallRunIsRight; };
+	UFUNCTION(BlueprintPure) bool IsHanging() const { return IsCustomMovementMode(CMOVE_Hang); }
+	UFUNCTION(BlueprintPure) bool IsClimbing() const { return IsCustomMovementMode(CMOVE_Climb); }
+
 	
 	// Proxy Replication
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
