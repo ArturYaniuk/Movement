@@ -318,13 +318,19 @@ void UAdvancedCharMovementComponent::UpdateCharacterStateBeforeMovement(float De
 	// Try Mantle
 	if (MovementCharacterOwner->bPressedMovementJump)
 	{
+		if (IsClimbing())
+		{
+			TryMantle();
+		}
+		SLOG("bPressedMovementJump")
 		if (TryMantle())
 		{
+			SLOG("Trying Mantle")
 			MovementCharacterOwner->StopJumping();
 		}
 		else if (TryHang())
 		{
-
+			SLOG("Trying Hang")
 			MovementCharacterOwner->StopJumping();		
 		}
 		else
@@ -428,6 +434,11 @@ void UAdvancedCharMovementComponent::OnMovementModeChanged(EMovementMode Previou
 
 	if (IsCustomMovementMode(CMOVE_Slide)) EnterSlide(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
 	if (IsCustomMovementMode(CMOVE_Prone)) EnterProne(PreviousMovementMode, (ECustomMovementMode)PreviousCustomMode);
+	
+	if (IsFalling())
+	{
+		bOrientRotationToMovement = true;
+	}
 
 	if (IsWallRunning() && GetOwnerRole() == ROLE_SimulatedProxy)
 	{
@@ -916,7 +927,8 @@ void UAdvancedCharMovementComponent::PerformDash()
 #pragma region Mantle
 bool UAdvancedCharMovementComponent::TryMantle()
 {
-	if (!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Falling)) return false;
+	
+	if ((!(IsMovementMode(MOVE_Walking) && !IsCrouching()) && !IsMovementMode(MOVE_Falling)) && !IsCustomMovementMode(CMOVE_Climb)) return false;
 
 	// Helper Variables
 	FVector BaseLoc = UpdatedComponent->GetComponentLocation() + FVector::DownVector * CapHH();
@@ -1204,7 +1216,7 @@ void UAdvancedCharMovementComponent::PhysWallRun(float deltaTime, int32 Iteratio
 #pragma region Climbing
 bool UAdvancedCharMovementComponent::TryHang()
 	{
-		if (!IsMovementMode(MOVE_Falling)) return false;
+	if (!IsMovementMode(MOVE_Falling)) return false;
 
 
 	FHitResult WallHit;
@@ -1282,7 +1294,7 @@ bool UAdvancedCharMovementComponent::TryHang()
 bool UAdvancedCharMovementComponent::TryClimb()
 {
 	if (!IsFalling()) return false;
-
+	
 	FHitResult SurfaceHit;
 	FVector CapLoc = UpdatedComponent->GetComponentLocation();
 	GetWorld()->LineTraceSingleByProfile(SurfaceHit, CapLoc, CapLoc + UpdatedComponent->GetForwardVector() * ClimbReachDistance, "Block All", MovementCharacterOwner->GetIgnoreCharactersParams());
@@ -1295,7 +1307,7 @@ bool UAdvancedCharMovementComponent::TryClimb()
 	SetMovementMode(MOVE_Custom, CMOVE_Climb);
 
 	bOrientRotationToMovement = false;
-
+	
 	return true;
 }
 
