@@ -1161,7 +1161,7 @@ void UAdvancedCharMovementComponent::PhysWallRun(float deltaTime, int32 Iteratio
 		}
 		// Clamp Acceleration
 		Acceleration = FVector::VectorPlaneProject(Acceleration, WallHit.Normal);
-		Acceleration.Z = 0.f;
+		Acceleration.Z = GravityAcceleration;
 		// Apply acceleration
 		CalcVelocity(timeTick, 0.f, false, GetMaxBrakingDeceleration());
 		Velocity = FVector::VectorPlaneProject(Velocity, WallHit.Normal);

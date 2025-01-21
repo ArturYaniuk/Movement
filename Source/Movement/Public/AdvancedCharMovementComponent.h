@@ -71,62 +71,64 @@ class MOVEMENT_API UAdvancedCharMovementComponent : public UCharacterMovementCom
 	};
 	
 	//Parameters
-	UPROPERTY(EditDefaultsOnly) float MaxSprintSpeed = 700.f;
-	UPROPERTY(EditDefaultsOnly) float Walk_MaxWalkSpeed = 250.f;
+	UPROPERTY(EditDefaultsOnly, Category = Parameters) float MaxSprintSpeed = 700.f;
+	UPROPERTY(EditDefaultsOnly, Category = Parameters) float Walk_MaxWalkSpeed = 250.f;
 
 	// Slide
-	UPROPERTY(EditDefaultsOnly) float MinSlideSpeed = 350.f;
-	UPROPERTY(EditDefaultsOnly) float MaxSlideSpeed=350.f;
-	UPROPERTY(EditDefaultsOnly) float SlideEnterImpulse = 500.f;
-	UPROPERTY(EditDefaultsOnly) float SlideGravityForce = 5000.f;
-	UPROPERTY(EditDefaultsOnly) float SlideFrictionFactor = .06f;
-	UPROPERTY(EditDefaultsOnly) float BrakingDecelerationSliding=1000.f;
+	UPROPERTY(EditDefaultsOnly, Category = Slide) float MinSlideSpeed = 350.f;
+	UPROPERTY(EditDefaultsOnly, Category = Slide) float MaxSlideSpeed=350.f;
+	UPROPERTY(EditDefaultsOnly, Category = Slide) float SlideEnterImpulse = 500.f;
+	UPROPERTY(EditDefaultsOnly, Category = Slide) float SlideGravityForce = 5000.f;
+	UPROPERTY(EditDefaultsOnly, Category = Slide) float SlideFrictionFactor = .06f;
+	UPROPERTY(EditDefaultsOnly, Category = Slide) float BrakingDecelerationSliding=1000.f;
 
 	// Prone
-	UPROPERTY(EditDefaultsOnly) float ProneEnterHoldDuration = .2f;
-	UPROPERTY(EditDefaultsOnly) float ProneSlideEnterImpulse = 300.f;
-	UPROPERTY(EditDefaultsOnly) float MaxProneSpeed = 300.f;
-	UPROPERTY(EditDefaultsOnly) float BreakingDecelerationsProning = 2500.f;
+	UPROPERTY(EditDefaultsOnly, Category = Prone) float ProneEnterHoldDuration = .2f;
+	UPROPERTY(EditDefaultsOnly, Category = Prone) float ProneSlideEnterImpulse = 300.f;
+	UPROPERTY(EditDefaultsOnly, Category = Prone) float MaxProneSpeed = 300.f;
+	UPROPERTY(EditDefaultsOnly, Category = Prone) float BreakingDecelerationsProning = 2500.f;
 
 	// Dash
-	UPROPERTY(EditDefaultsOnly) float DashImpulse = 2000.f;
-	UPROPERTY(EditDefaultsOnly) float DashCooldownDuration = 1.f;
-	UPROPERTY(EditDefaultsOnly) float AutoDashCooldownDuration = .9f;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* DashMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Dash) float DashCooldownDuration = 1.f;
+	UPROPERTY(EditDefaultsOnly, Category = Dash) float AutoDashCooldownDuration = .9f;
+	UPROPERTY(EditDefaultsOnly, Category = Dash) UAnimMontage* DashMontage;
 
 	// Mantle
-	UPROPERTY(EditDefaultsOnly) float MantleMaxDistance = 200;
-	UPROPERTY(EditDefaultsOnly) float MantleReachHeight = 50;
-	UPROPERTY(EditDefaultsOnly) float MinMantleDepth = 30;
-	UPROPERTY(EditDefaultsOnly) float MantleMinWallSteepnessAngle = 75;
-	UPROPERTY(EditDefaultsOnly) float MantleMaxSurfaceAngle = 40;
-	UPROPERTY(EditDefaultsOnly) float MantleMaxAlignmentAngle = 45;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* TallMantleMontage;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionTallMantleMontage;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyTallMantleMontage;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* ShortMantleMontage;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionShortMantleMontage;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* ProxyShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) float MantleMaxDistance = 200;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) float MantleReachHeight = 50;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) float MinMantleDepth = 30;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) float MantleMinWallSteepnessAngle = 75;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) float MantleMaxSurfaceAngle = 40;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) float MantleMaxAlignmentAngle = 45;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) UAnimMontage* TallMantleMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) UAnimMontage* TransitionTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) UAnimMontage* ProxyTallMantleMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) UAnimMontage* ShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) UAnimMontage* TransitionShortMantleMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Mantle) UAnimMontage* ProxyShortMantleMontage;
 
 	// Wall Run
-	UPROPERTY(EditDefaultsOnly) float MinWallRunSpeed = 200.f;
-	UPROPERTY(EditDefaultsOnly) float MaxWallRunSpeed = 800.f;
-	UPROPERTY(EditDefaultsOnly) float MaxVerticalWallRunSpeed = 200.f;
-	UPROPERTY(EditDefaultsOnly) float WallRunPullAwayAngle = 75;
-	UPROPERTY(EditDefaultsOnly) float WallAttractionForce = 200.f;
-	UPROPERTY(EditDefaultsOnly) float MinWallRunHeight = 50.f;
-	UPROPERTY(EditDefaultsOnly) UCurveFloat* WallRunGravityScaleCurve;
-	UPROPERTY(EditDefaultsOnly) float WallJumpOffForce = 300.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float MinWallRunSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float MaxWallRunSpeed = 800.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float MaxVerticalWallRunSpeed = 200.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float WallRunPullAwayAngle = 75;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float WallAttractionForce = 200.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float MinWallRunHeight = 50.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) UCurveFloat* WallRunGravityScaleCurve;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float WallJumpOffForce = 300.f;
+	UPROPERTY(EditDefaultsOnly, Category = WallRun) float GravityAcceleration = -300.f;
+	
+	
 	
 	// Hang
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* TransitionHangMontage;
-	UPROPERTY(EditDefaultsOnly) UAnimMontage* WallJumpMontage;
-	UPROPERTY(EditDefaultsOnly) float WallJumpForce = 400.f;
+	UPROPERTY(EditDefaultsOnly, Category = Hang) UAnimMontage* TransitionHangMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Hang) UAnimMontage* WallJumpMontage;
+	UPROPERTY(EditDefaultsOnly, Category = Hang) float WallJumpForce = 400.f;
 
 	// Climb
-	UPROPERTY(EditDefaultsOnly) float MaxClimbSpeed = 300.f;
-	UPROPERTY(EditDefaultsOnly) float BreakingDecelerationClimbing = 1000.f;
-	UPROPERTY(EditDefaultsOnly) float ClimbReachDistance = 200.f;
+	UPROPERTY(EditDefaultsOnly, Category = Climb) float MaxClimbSpeed = 300.f;
+	UPROPERTY(EditDefaultsOnly, Category = Climb) float BreakingDecelerationClimbing = 1000.f;
+	UPROPERTY(EditDefaultsOnly, Category = Climb) float ClimbReachDistance = 200.f;
 	
 	UPROPERTY(Transient)	AMovementCharacter* MovementCharacterOwner;
 
